@@ -50,20 +50,32 @@ const LongitudinalLimits SUBARU_LONG_LIMITS = {
 #define MSG_SUBARU_ES_LKAS_State         0x322
 #define MSG_SUBARU_ES_Infotainment       0x323
 
+#define MSG_SUBARU_ES_UDS_Request        0x787
+
+#define MSG_SUBARU_ES_HighBeamAssist     0x121
+#define MSG_SUBARU_ES_STATIC_1           0x22a
+#define MSG_SUBARU_ES_STATIC_2           0x325
+
 #define SUBARU_MAIN_BUS 0
 #define SUBARU_ALT_BUS  1
 #define SUBARU_CAM_BUS  2
 
-#define SUBARU_COMMON_TX_MSGS(alt_bus, lkas_msg)    \
-  {lkas_msg,                   SUBARU_MAIN_BUS, 8}, \
-  {MSG_SUBARU_ES_Distance,     alt_bus,         8}, \
-  {MSG_SUBARU_ES_DashStatus,   SUBARU_MAIN_BUS, 8}, \
-  {MSG_SUBARU_ES_LKAS_State,   SUBARU_MAIN_BUS, 8}, \
-  {MSG_SUBARU_ES_Infotainment, SUBARU_MAIN_BUS, 8}, \
+#define SUBARU_COMMON_TX_MSGS(alt_bus, lkas_msg)      \
+  {lkas_msg,                     SUBARU_MAIN_BUS, 8}, \
+  {MSG_SUBARU_ES_Distance,       alt_bus,         8}, \
+  {MSG_SUBARU_ES_DashStatus,     SUBARU_MAIN_BUS, 8}, \
+  {MSG_SUBARU_ES_LKAS_State,     SUBARU_MAIN_BUS, 8}, \
+  {MSG_SUBARU_ES_Infotainment,   SUBARU_MAIN_BUS, 8}, \
 
-#define SUBARU_COMMON_LONG_TX_MSGS(alt_bus)         \
-  {MSG_SUBARU_ES_Brake,        SUBARU_MAIN_BUS, 8}, \
-  {MSG_SUBARU_ES_Status,       SUBARU_MAIN_BUS, 8}, \
+#define SUBARU_COMMON_LONG_TX_MSGS(alt_bus)           \
+  {MSG_SUBARU_ES_Brake,          alt_bus,         8}, \
+  {MSG_SUBARU_ES_Status,         alt_bus,         8}, \
+
+#define SUBARU_GEN2_LONG_ADDITIONAL_TX_MSGS()         \
+  {MSG_SUBARU_ES_UDS_Request,    SUBARU_CAM_BUS,  8}, \
+  {MSG_SUBARU_ES_HighBeamAssist, SUBARU_MAIN_BUS, 8}, \
+  {MSG_SUBARU_ES_STATIC_1,       SUBARU_MAIN_BUS, 8}, \
+  {MSG_SUBARU_ES_STATIC_2,       SUBARU_MAIN_BUS, 8}, \
 
 #define SUBARU_COMMON_ADDR_CHECKS(alt_bus)                                                                                                            \
   {.msg = {{MSG_SUBARU_Throttle,        SUBARU_MAIN_BUS, 8, .check_checksum = true, .max_counter = 15U, .expected_timestep = 10000U}, { 0 }, { 0 }}}, \
@@ -91,7 +103,14 @@ const CanMsg SUBARU_GEN2_TX_MSGS[] = {
 const CanMsg SUBARU_LKAS_ANGLE_TX_MSGS[] = {
   SUBARU_COMMON_TX_MSGS(SUBARU_MAIN_BUS, MSG_SUBARU_ES_LKAS_ANGLE)
 };
+
 #define SUBARU_LKAS_ANGLE_TX_MSGS_LEN (sizeof(SUBARU_LKAS_ANGLE_TX_MSGS) / sizeof(SUBARU_LKAS_ANGLE_TX_MSGS[0]))
+const CanMsg SUBARU_GEN2_LONG_TX_MSGS[] = {
+  SUBARU_COMMON_TX_MSGS(SUBARU_ALT_BUS, MSG_SUBARU_ES_LKAS)
+  SUBARU_COMMON_LONG_TX_MSGS(SUBARU_ALT_BUS)
+  SUBARU_GEN2_LONG_ADDITIONAL_TX_MSGS()
+};
+#define SUBARU_GEN2_LONG_TX_MSGS_LEN (sizeof(SUBARU_GEN2_LONG_TX_MSGS) / sizeof(SUBARU_GEN2_LONG_TX_MSGS[0]))
 
 AddrCheckStruct subaru_addr_checks[] = {
   SUBARU_COMMON_ADDR_CHECKS(SUBARU_MAIN_BUS)
@@ -194,14 +213,16 @@ static int subaru_tx_hook(CANPacket_t *to_send) {
   int addr = GET_ADDR(to_send);
   bool violation = false;
 
-  if (subaru_gen2) {
-    tx = msg_allowed(to_send, SUBARU_GEN2_TX_MSGS, SUBARU_GEN2_TX_MSGS_LEN);
+  if (subaru_gen2 && subaru_longitudinal) {
+    tx = msg_allowed(to_send, SUBARU_GEN2_LONG_TX_MSGS, SUBARU_GEN2_LONG_TX_MSGS_LEN);
+  } else if (subaru_gen2) {
+    tx = msg_allowed(to_send, SUBARU_GEN2_TX_MSGS,      SUBARU_GEN2_TX_MSGS_LEN);
   } else if (subaru_longitudinal) {
-    tx = msg_allowed(to_send, SUBARU_LONG_TX_MSGS, SUBARU_LONG_TX_MSGS_LEN);
+    tx = msg_allowed(to_send, SUBARU_LONG_TX_MSGS,      SUBARU_LONG_TX_MSGS_LEN);
   } else if(lkas_angle) {
     tx = msg_allowed(to_send, SUBARU_LKAS_ANGLE_TX_MSGS, SUBARU_LKAS_ANGLE_TX_MSGS_LEN);
   } else {
-    tx = msg_allowed(to_send, SUBARU_TX_MSGS, SUBARU_TX_MSGS_LEN);
+    tx = msg_allowed(to_send, SUBARU_TX_MSGS,           SUBARU_TX_MSGS_LEN);
   }
 
   // steer cmd checks
@@ -251,6 +272,16 @@ static int subaru_tx_hook(CANPacket_t *to_send) {
     violation |= longitudinal_transmission_rpm_checks(transmission_rpm, SUBARU_LONG_LIMITS);
   }
 
+  if (addr == MSG_SUBARU_ES_UDS_Request) {
+    // tester present ('\x02\x3E\x80\x00\x00\x00\x00\x00') is allowed for gen2 longitudinal to keep eyesight disabled
+    bool is_tester_present = (GET_BYTES(to_send, 0, 4) == 0x00803E02U) && (GET_BYTES(to_send, 4, 4) == 0x0U);
+
+    // reading ES button data by identifier (b'\x03\x22\x11\x30\x00\x00\x00\x00') is also allowed (DID 0x1130)
+    bool is_button_rdbi = (GET_BYTES(to_send, 0, 4) == 0x30112203U) && (GET_BYTES(to_send, 4, 4) == 0x0U);
+
+    violation |= !(is_tester_present || is_button_rdbi);
+  }
+
   if (violation){
     tx = 0;
   }
@@ -290,7 +321,7 @@ static const addr_checks* subaru_init(uint16_t param) {
   subaru_gen2 = GET_FLAG(param, SUBARU_PARAM_GEN2);
 
 #ifdef ALLOW_DEBUG
-  subaru_longitudinal = GET_FLAG(param, SUBARU_PARAM_LONGITUDINAL) && !subaru_gen2;
+  subaru_longitudinal = GET_FLAG(param, SUBARU_PARAM_LONGITUDINAL);
   lkas_angle = GET_FLAG(param, SUBARU_PARAM_LKAS_ANGLE) && !subaru_gen2;
 #endif
 
