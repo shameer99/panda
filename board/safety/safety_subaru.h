@@ -320,7 +320,7 @@ static const addr_checks* subaru_init(uint16_t param) {
   subaru_gen2 = GET_FLAG(param, SUBARU_PARAM_GEN2);
 
 #ifdef ALLOW_DEBUG
-  subaru_longitudinal = GET_FLAG(param, SUBARU_PARAM_LONGITUDINAL);
+  subaru_longitudinal = GET_FLAG(param, SUBARU_PARAM_LONGITUDINAL) && !lkas_angle;
   lkas_angle = GET_FLAG(param, SUBARU_PARAM_LKAS_ANGLE) && !subaru_gen2;
 #endif
 
