@@ -297,7 +297,6 @@ static int subaru_fwd_hook(int bus_num, int addr) {
 
   if (bus_num == SUBARU_CAM_BUS) {
     // Global platform
-
     bool block_lkas = (((addr == MSG_SUBARU_ES_LKAS)       && !lkas_angle) ||
                        ((addr == MSG_SUBARU_ES_LKAS_ANGLE) &&  lkas_angle) ||
                         (addr == MSG_SUBARU_ES_DashStatus) ||
