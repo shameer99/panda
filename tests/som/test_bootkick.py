@@ -6,7 +6,6 @@ from panda import Panda, PandaJungle
 PANDA_SERIAL = "28002d000451323431333839"
 JUNGLE_SERIAL = "26001c001451313236343430"
 
-AUX_PORT = 6
 OBDC_PORT = 1
 
 @pytest.fixture(autouse=True, scope="function")
@@ -14,6 +13,7 @@ def pj():
   jungle = PandaJungle(JUNGLE_SERIAL)
   jungle.flash()
 
+  jungle.reset()
   jungle.set_ignition(False)
 
   yield jungle
@@ -39,7 +39,6 @@ def setup_state(panda, jungle, state):
   elif state == "normal boot":
     jungle.set_panda_individual_power(OBDC_PORT, 1)
   elif state == "QDL":
-    jungle.set_panda_individual_power(AUX_PORT, 1)
     time.sleep(0.5)
     jungle.set_panda_individual_power(OBDC_PORT, 1)
   elif state == "ready to bootkick":
@@ -117,3 +116,23 @@ def test_bootkick_can_ignition(p, pj):
     pj.can_send(0x9E, b'\xc0\x00\x00\x00\x00\x00\x00\x00', 0)
     time.sleep(0.5)
   wait_for_boot(p, pj, bootkick=True)
+
+def test_recovery_from_qdl(p, pj):
+  setup_state(p, pj, "ready to bootkick")
+
+  # TODO: check that we went into QDL
+  # put into QDL, using the FORCE_USB_BOOT pin
+  for i in range(10):
+    pj.set_header_pin(i, 1)
+
+  # try to boot
+  time.sleep(1)
+  pj.set_ignition(True)
+
+  # normally, this GPIO is set quickly since it's first enabled in the ABL
+  for i in range(10):
+    assert not p.read_som_gpio()
+    time.sleep(1)
+
+  # should boot after 45s
+  wait_for_boot(p, pj, bootkick=True, timeout=120)

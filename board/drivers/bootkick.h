@@ -25,7 +25,7 @@ void bootkick_tick(bool ignition, bool recent_heartbeat) {
   if (waiting_to_boot) {
     if (current_board->read_som_gpio()) {
       waiting_to_boot = false;
-    } else if (waiting_to_boot_count == 45U) {
+    } else if (waiting_to_boot_count == 30U) {
       boot_reset_countdown = 3U;
     } else {
 
