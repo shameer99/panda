@@ -14,8 +14,8 @@ void tres_set_ir_power(uint8_t percentage){
   pwm_set(TIM3, 4, percentage);
 }
 
-void tres_set_bootkick(bool enabled){
-  set_gpio_output(GPIOA, 0, !enabled);
+void tres_set_bootkick(BootState state) {
+  set_gpio_output(GPIOA, 0, state != BOOT_BOOTKICK);
 }
 
 void tres_set_fan_enabled(bool enabled) {

@@ -49,8 +49,8 @@ void uno_set_led(uint8_t color, bool enabled) {
   }
 }
 
-void uno_set_bootkick(bool enabled){
-  if (enabled) {
+void uno_set_bootkick(BootState state) {
+  if (state == BOOT_BOOTKICK) {
     set_gpio_output(GPIOB, 14, false);
   } else {
     // We want the pin to be floating, not forced high!

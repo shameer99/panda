@@ -1,4 +1,10 @@
 // ******************** Prototypes ********************
+typedef enum {
+  BOOT_STANDBY,
+  BOOT_BOOTKICK,
+  BOOT_RESET,
+} BootState;
+
 typedef void (*board_init)(void);
 typedef void (*board_init_bootloader)(void);
 typedef void (*board_enable_can_transceiver)(uint8_t transceiver, bool enabled);
@@ -11,7 +17,7 @@ typedef void (*board_set_ir_power)(uint8_t percentage);
 typedef void (*board_set_fan_enabled)(bool enabled);
 typedef void (*board_set_phone_power)(bool enabled);
 typedef void (*board_set_siren)(bool enabled);
-typedef void (*board_set_bootkick)(bool enabled);
+typedef void (*board_set_bootkick)(BootState state);
 typedef bool (*board_read_som_gpio)(void);
 
 struct board {

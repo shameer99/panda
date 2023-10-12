@@ -21,8 +21,8 @@ uint32_t unused_read_current(void) {
   return 0U;
 }
 
-void unused_set_bootkick(bool enable) {
-  UNUSED(enable);
+void unused_set_bootkick(BootState state) {
+  UNUSED(state);
 }
 
 bool unused_read_som_gpio(void) {

@@ -49,8 +49,8 @@ void dos_set_led(uint8_t color, bool enabled) {
   }
 }
 
-void dos_set_bootkick(bool enabled){
-  set_gpio_output(GPIOC, 4, !enabled);
+void dos_set_bootkick(BootState state) {
+  set_gpio_output(GPIOC, 4, state != BOOT_BOOTKICK);
 }
 
 void dos_set_can_mode(uint8_t mode) {
